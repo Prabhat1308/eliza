@@ -103,7 +103,12 @@ function buildQuotaOccurrence(
     scheduledAt,
     -(cadence.visibilityLeadMinutes ?? 0),
   );
-  const relevanceEndAt = addMinutes(dueAt, cadence.visibilityLagMinutes ?? 0);
+  const lagMinutes = cadence.visibilityLagMinutes ?? 0;
+  const relevanceEndAt = resolveSnoozedQuotaRelevanceEndAt(
+    addMinutes(dueAt, lagMinutes),
+    lagMinutes,
+    existing?.snoozedUntil,
+  );
   const occurrenceKey = buildOccurrenceKey("quota", localDateKey, "day");
   return {
     id: existing?.id ?? crypto.randomUUID(),
@@ -145,6 +150,8 @@ function buildQuotaOccurrence(
   };
 }
 
+const SNOOZED_QUOTA_DELIVERY_LAG_MINUTES = 4 * 60;
+
 function resolveLagMinutes(cadence: LifeOpsCadence): number {
   if (cadence.kind === "once") {
     return cadence.visibilityLagMinutes ?? 6 * 60;
@@ -172,6 +179,24 @@ function resolveSnoozedRelevanceEndAt(
   const relevantSpanMs = relevanceEndAt.getTime() - scheduledAt.getTime();
   return new Date(
     Math.max(relevanceEndAt.getTime(), snoozedUntilMs + relevantSpanMs),
+  );
+}
+
+function resolveSnoozedQuotaRelevanceEndAt(
+  relevanceEndAt: Date,
+  lagMinutes: number,
+  snoozedUntil: string | null | undefined,
+): Date {
+  const snoozedUntilMs = snoozedUntil ? Date.parse(snoozedUntil) : Number.NaN;
+  if (!Number.isFinite(snoozedUntilMs)) {
+    return relevanceEndAt;
+  }
+  const graceMinutes = Math.max(lagMinutes, SNOOZED_QUOTA_DELIVERY_LAG_MINUTES);
+  return new Date(
+    Math.max(
+      relevanceEndAt.getTime(),
+      addMinutes(new Date(snoozedUntilMs), graceMinutes).getTime(),
+    ),
   );
 }
 

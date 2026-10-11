@@ -61,6 +61,19 @@ const cases: {
     request: { preset: "tonight" },
     snoozedUntil: "2026-10-12T20:00:00.000Z",
   },
+  {
+    name: "daily quota snoozed into the next local day",
+    cadence: {
+      kind: "count_per_day",
+      targetCount: 3,
+      unit: "set",
+      perOccurrenceWork: "25 pushups",
+      timing: { kind: "anytime" },
+    },
+    snoozeAt: "2026-10-12T23:30:00.000Z",
+    request: { minutes: 510 },
+    snoozedUntil: "2026-10-13T08:00:00.000Z",
+  },
 ];
 
 it.each(cases)(
@@ -124,9 +137,16 @@ it.each(cases)(
         occurrence.id,
       ),
     ).toMatchObject({ state: "visible", snoozedUntil });
-    expect(getRecordedTestNotifications(fixture.runtime)).toHaveLength(1);
     expect(
-      await service.repository.listReminderAttempts(fixture.runtime.agentId),
+      getRecordedTestNotifications(fixture.runtime).filter(
+        (notification) =>
+          notification.groupKey === `reminder:occurrence:${occurrence.id}`,
+      ),
+    ).toHaveLength(1);
+    expect(
+      (
+        await service.repository.listReminderAttempts(fixture.runtime.agentId)
+      ).filter((attempt) => attempt.ownerId === occurrence.id),
     ).toMatchObject([{ ownerId: occurrence.id, scheduledFor: snoozedUntil }]);
   },
   120_000,
